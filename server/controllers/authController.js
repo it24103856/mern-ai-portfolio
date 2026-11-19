@@ -2,6 +2,29 @@ import User from '../models/User.js';
 import generateToken from '../utils/generateToken.js';
 import bcrypt from 'bcryptjs';
 
+const sendTokenResponse = (user, statusCode, res) => {
+  const token = generateToken(user._id);
+  const isProd = process.env.NODE_ENV === 'production';
+
+  res
+    .status(statusCode)
+    .cookie('token', token, {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: isProd ? 'none' : 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    })
+    .json({
+      success: true,
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+    });
+};
+
 // @desc    Register the single Admin account (locks after 1 user exists)
 // @route   POST /api/auth/register
 // @access  Public (Only once)
@@ -38,17 +61,7 @@ export const registerAdmin = async (req, res, next) => {
       password: hashedPassword,
     });
 
-    generateToken(res, user._id);
-
-    res.status(201).json({
-      success: true,
-      user: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-      },
-    });
+    sendTokenResponse(user, 201, res);
   } catch (error) {
     next(error);
   }
@@ -69,17 +82,7 @@ export const loginAdmin = async (req, res, next) => {
     const user = await User.findOne({ email }).select('+password');
 
     if (user && (await user.matchPassword(password))) {
-      generateToken(res, user._id);
-
-      res.status(200).json({
-        success: true,
-        user: {
-          _id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-        },
-      });
+      sendTokenResponse(user, 200, res);
     } else {
       res.status(401);
       return next(new Error('Invalid email or password'));
@@ -93,8 +96,11 @@ export const loginAdmin = async (req, res, next) => {
 // @route   POST /api/auth/logout
 // @access  Private
 export const logoutAdmin = (req, res) => {
-  res.cookie('jwt', '', {
+  const isProd = process.env.NODE_ENV === 'production';
+  res.cookie('token', '', {
     httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'strict',
     expires: new Date(0),
   });
   res.status(200).json({ success: true, message: 'Logged out successfully' });
