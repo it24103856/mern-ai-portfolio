@@ -1,0 +1,16 @@
+import jwt from 'jsonwebtoken';
+
+const generateToken = (res, userId) => {
+  const token = jwt.sign({ userId }, process.env.JWT_SECRET, {
+    expiresIn: '7d',
+  });
+
+  res.cookie('jwt', token, {
+    httpOnly: true, // XSS attacks වලින් token එක ආරක්ෂා කරයි
+    secure: process.env.NODE_ENV !== 'development', // Production වලදී HTTPS පමණි
+    sameSite: process.env.NODE_ENV === 'development' ? 'lax' : 'none',
+    maxAge: 7 * 24 * 60 * 60 * 1000, // දින 7ක්
+  });
+};
+
+export default generateToken;
